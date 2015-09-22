@@ -163,7 +163,7 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 		return fmt.Errorf("Error waiting for elasticache (%s) to be created: %s", d.Id(), sterr)
 	}
 
-	return nil
+	return resourceAwsElasticacheReplicationGroupRead(d, meta)
 }
 
 func resourceAwsElasticacheReplicationGroupRead(d *schema.ResourceData, meta interface{}) error {
