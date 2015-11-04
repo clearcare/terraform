@@ -1,7 +1,7 @@
 ---
 layout: "google"
 page_title: "Google: google_storage_bucket_object"
-sidebar_current: "docs-google-resource-storage-object"
+sidebar_current: "docs-google-storage-bucket-object"
 description: |-
   Creates a new object inside a specified bucket
 ---
@@ -20,7 +20,6 @@ resource "google_storage_bucket_object" "picture" {
 	name = "butterfly01"
     source = "/images/nature/garden-tiger-moth.jpg"
     bucket = "image-store"
-	predefined_acl = "publicRead"
 }
 
 ```
@@ -32,7 +31,8 @@ The following arguments are supported:
 * `name` - (Required) The name of the object.
 * `bucket` - (Required) The name of the containing bucket.
 * `source` - (Required) A path to the data you want to upload.
-* `predefined_acl` - (Optional, Default: 'projectPrivate') The [canned GCS ACL](https://cloud.google.com/storage/docs/access-control#predefined-acl) apply.
+* `predefined_acl` - (Optional, Deprecated) The [canned GCS ACL](https://cloud.google.com/storage/docs/access-control#predefined-acl) apply. Please switch 
+to `google_storage_object_acl.predefined_acl`.
 
 ## Attributes Reference
 

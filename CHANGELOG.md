@@ -1,34 +1,157 @@
-## 0.6.4 (unreleased)
+## 0.6.7 (Unreleased)
+
+FEATURES:
+
+  * **New resource: `aws_cloudformation_stack`** [GH-2636]
+  * **New resource: `aws_cloudtrail`** [GH-3094]
+  * **New resource: `aws_route`** [GH-3548]
+  * **New resource: `aws_codecommit_repository`** [GH-3274]
+  * **New provider: `tls`** - A utility provider for generating TLS keys/self-signed certificates for development and testing [GH-2778]
+  * **New resource: `google_sql_database` and `google_sql_database_instance`** [GH-3617]
+  * **New resource: `google_compute_global_address`** [GH-3701]
+  * **New resource: `google_compute_ssl_certificate`** [GH-3723]
+  * **New resource: `google_compute_url_map`** [GH-3722]
+  * **New resource: `google_compute_target_http_proxy`** [GH-3727]
+  * **New resource: `google_compute_target_https_proxy`** [GH-3728]
+  * **New resource: `google_compute_global_forwarding_rule`** [GH-3702]
+  * **New resource: `openstack_networking_port_v2`** [GH-3731]
+
+IMPROVEMENTS:
+
+  * provider/google: preemptible option for instance_template [GH-3667]
+  * provider/google: Accurate Terraform Version [GH-3554]
+  * provider/google: Simplified auth (DefaultClient support) [GH-3553]
+  * provider/google: automatic_restart, preemptible, on_host_maintenance options [GH-3643]
+  * null_resource: enhance and document [GH-3244, GH-3659]
+  * provider/aws: Add CORS settings to S3 bucket [GH-3387]
+  * provider/aws: Add notification topic ARN for ElastiCache clusters [GH-3674]
+  * provider/aws: Add `kinesis_endpoint` for configuring Kinesis [GH-3255]
+  * provider/aws: Add a computed ARN for S3 Buckets [GH-3685]
+  * provider/aws: Add configuration to enable copying RDS tags to final snapshot [GH-3529]
+  * provider/openstack: Use IPv4 as the defeault IP version for subnets [GH-3091]
+  * provider/aws: Apply security group after restoring db_instance from snapshot [GH-3513]
+  * provider/aws: Making the AutoScalingGroup name optional [GH-3710]
+  * provider/openstack: Add "delete on termination" boot-from-volume option [GH-3232]
+
+BUG FIXES:
+
+  * `terraform remote config`: update `--help` output [GH-3632]
+  * core: modules on Git branches now update properly [GH-1568]
+  * provider/google: Timeout when deleting large instance_group_manager [GH-3591]
+  * provider/aws: Fix issue with order of Termincation Policies in AutoScaling Groups. 
+      This will introduce plans on upgrade to this version, in order to correct the ordering [GH-2890]
+  * provider/aws: Allow cluster name, not only ARN for `aws_ecs_service` [GH-3668]
+  * provider/aws: ignore association not exist on route table destroy [GH-3615]
+  * provider/aws: Fix policy encoding issue with SNS Topics [GH-3700]
+  * provider/azure: various bugfixes [GH-3695]
+  * provider/digitalocean: fix issue preventing SSH fingerprints from working [GH-3633]
+  * provider/openstack: Fix several issues causing unresolvable diffs [GH-3440]
+  * provider/openstack: Safely delete security groups [GH-3696]
+  * provider/openstack: Ignore order of security_groups in instance [GH-3651]
+  * provider/vsphere: Fix d.SetConnInfo error in case of a missing IP address [GH-3636]
+  * provider/openstack: Fix boot from volume [GH-3206]
+  * provider/openstack: Fix crashing when image is no longer accessible [GH-2189]
+  * provider/openstack: Better handling of network resource state changes [GH-3712]
+
+## 0.6.6 (October 23, 2015)
+
+FEATURES:
+
+  * New interpolation functions: `cidrhost`, `cidrnetmask` and `cidrsubnet` [GH-3127]
+
+IMPROVEMENTS:
+
+  * "forces new resource" now highlighted in plan output [GH-3136]
+
+BUG FIXES:
+
+  * helper/schema: Better error message for assigning list/map to string [GH-3009]
+  * remote/state/atlas: Additional remote state conflict handling for semantically neutral state changes [GH-3603]
+
+## 0.6.5 (October 21, 2015)
+
+FEATURES:
+
+  * **New resources: `aws_codeploy_app` and `aws_codeploy_deployment_group`** [GH-2783]
+  * New remote state backend: `etcd` [GH-3487]
+  * New interpolation functions: `upper` and `lower` [GH-3558]
+
+BUG FIXES:
+
+  * core: Fix remote state conflicts caused by ambiguity in ordering of deeply nested modules [GH-3573]
+  * core: Fix remote state conflicts caused by state metadata differences [GH-3569]
+  * core: Avoid using http.DefaultClient [GH-3532]
+
+INTERNAL IMPROVEMENTS:
+
+  * provider/digitalocean: use official Go client [GH-3333]
+  * core: extract module fetching to external library [GH-3516]
+
+## 0.6.4 (October 15, 2015)
 
 FEATURES:
 
   * **New provider: `rundeck`** [GH-2412]
+  * **New provider: `packet`** [GH-2260], [GH-3472]
+  * **New provider: `vsphere`**: Initial support for a VM resource [GH-3419]
   * **New resource: `cloudstack_loadbalancer_rule`** [GH-2934]
   * **New resource: `google_compute_project_metadata`** [GH-3065]
-  * **New resources: `aws_ami`, `aws_ami_copy`, `aws_ami_from_instance`** [GH-2874]
+  * **New resources: `aws_ami`, `aws_ami_copy`, `aws_ami_from_instance`** [GH-2784]
+  * **New resources: `aws_cloudwatch_log_group`** [GH-2415]
   * **New resource: `google_storage_bucket_object`** [GH-3192]
   * **New resources: `google_compute_vpn_gateway`, `google_compute_vpn_tunnel`** [GH-3213]
+  * **New resources: `google_storage_bucket_acl`, `google_storage_object_acl`** [GH-3272]
+  * **New resource: `aws_iam_saml_provider`** [GH-3156]
+  * **New resources: `aws_efs_file_system` and `aws_efs_mount_target`** [GH-2196]
+  * **New resources: `aws_opsworks_*`** [GH-2162]
+  * **New resource: `aws_elasticsearch_domain`** [GH-3443]
+  * **New resource: `aws_directory_service_directory`** [GH-3228]
+  * **New resource: `aws_autoscaling_lifecycle_hook`** [GH-3351]
+  * **New resource: `aws_placement_group`** [GH-3457]
+  * **New resource: `aws_glacier_vault`** [GH-3491]
+  * **New lifecycle flag: `ignore_changes`** [GH-2525]
 
 IMPROVEMENTS:
 
   * core: Add a function to find the index of an element in a list. [GH-2704]
   * core: Print all outputs when `terraform output` is called with no arguments [GH-2920]
   * core: In plan output summary, count resource replacement as Add/Remove instead of Change [GH-3173]
+  * core: Add interpolation functions for base64 encoding and decoding. [GH-3325]
+  * core: Expose parallelism as a CLI option instead of a hard-coding the default of 10 [GH-3365]
+  * core: Add interpolation function `compact`, to remove empty elements from a list. [GH-3239], [GH-3479]
+  * core: Allow filtering of log output by level, using e.g. ``TF_LOG=INFO`` [GH-3380]
   * provider/aws: Add `instance_initiated_shutdown_behavior` to AWS Instance [GH-2887]
   * provider/aws: Support IAM role names (previously just ARNs) in `aws_ecs_service.iam_role` [GH-3061]
   * provider/aws: Add update method to RDS Subnet groups, can modify subnets without recreating  [GH-3053]
   * provider/aws: Paginate notifications returned for ASG Notifications [GH-3043]
+  * provider/aws: Adds additional S3 Bucket Object inputs [GH-3265]
   * provider/aws: add `ses_smtp_password` to `aws_iam_access_key` [GH-3165]
   * provider/aws: read `iam_instance_profile` for `aws_instance` and save to state [GH-3167]
+  * provider/aws: allow `instance` to be computed in `aws_eip` [GH-3036]
   * provider/aws: Add `versioning` option to `aws_s3_bucket` [GH-2942]
   * provider/aws: Add `configuation_endpoint` to `aws_elasticache_cluster` [GH-3250]
+  * provider/aws: Add validation for `app_cookie_stickiness_policy.name` [GH-3277]
+  * provider/aws: Add validation for `db_parameter_group.name` [GH-3279]
+  * provider/aws: Set DynamoDB Table ARN after creation [GH-3500]
+  * provider/aws: `aws_s3_bucket_object` allows interpolated content to be set with new `content` attribute. [GH-3200]
+  * provider/aws: Allow tags for `aws_kinesis_stream` resource. [GH-3397]
+  * provider/aws: Configurable capacity waiting duration for ASGs [GH-3191]
+  * provider/aws: Allow non-persistent Spot Requests [GH-3311]
+  * provider/aws: Support tags for AWS DB subnet group [GH-3138]
   * provider/cloudstack: Add `project` parameter to `cloudstack_vpc`, `cloudstack_network`, `cloudstack_ipaddress` and `cloudstack_disk` [GH-3035]
+  * provider/openstack: add functionality to attach FloatingIP to Port [GH-1788]
+  * provider/google: Can now do multi-region deployments without using multiple providers [GH-3258]
+  * remote/s3: Allow canned ACLs to be set on state objects. [GH-3233]
+  * remote/s3: Remote state is stored in S3 with `Content-Type: application/json` [GH-3385]
 
 BUG FIXES:
 
   * core: Fix problems referencing list attributes in interpolations [GH-2157]
+  * core: don't error on computed value during input walk [GH-2988]
+  * core: Ignore missing variables during destroy phase [GH-3393]
   * provider/google: Crashes with interface conversion in GCE Instance Template [GH-3027]
   * provider/google: Convert int to int64 when building the GKE cluster.NodeConfig struct [GH-2978]
+  * provider/google: google_compute_instance_template.network_interface.network should be a URL [GH-3226]
   * provider/aws: Retry creation of `aws_ecs_service` if IAM policy isn't ready yet [GH-3061]
   * provider/aws: Fix issue with mixed capitalization for RDS Instances  [GH-3053]
   * provider/aws: Fix issue with RDS to allow major version upgrades [GH-3053]
@@ -38,8 +161,26 @@ BUG FIXES:
       by AWS [GH-3120]
   * provider/aws: Read instance source_dest_check and save to state [GH-3152]
   * provider/aws: Allow `weight = 0` in Route53 records [GH-3196]
+  * provider/aws: Normalize aws_elasticache_cluster id to lowercase, allowing convergence. [GH-3235]
+  * provider/aws: Fix ValidateAccountId for IAM Instance Profiles [GH-3313]
+  * provider/aws: Update Security Group Rules to Version 2 [GH-3019]
+  * provider/aws: Migrate KeyPair to version 1, fixing issue with using `file()` [GH-3470]
+  * provider/aws: Fix force_delete on autoscaling groups [GH-3485]
+  * provider/aws: Fix crash with VPC Peering connections [GH-3490]
+  * provider/aws: fix bug with reading GSIs from dynamodb [GH-3300]
+  * provider/docker: Fix issue preventing private images from being referenced [GH-2619]
+  * provider/digitalocean: Fix issue causing unnecessary diffs based on droplet slugsize case [GH-3284]
   * provider/openstack: add state 'downloading' to list of expected states in
       `blockstorage_volume_v1` creation [GH-2866]
+  * provider/openstack: remove security groups (by name) before adding security
+      groups (by id) [GH-2008]
+
+INTERNAL IMPROVEMENTS:
+
+  * core: Makefile target "plugin-dev" for building just one plugin. [GH-3229]
+  * helper/schema: Don't allow ``Update`` func if no attributes can actually be updated, per schema. [GH-3288]
+  * helper/schema: Default hashing function for sets [GH-3018]
+  * helper/multierror: Remove in favor of [github.com/hashicorp/go-multierror](http://github.com/hashicorp/go-multierror). [GH-3336]
 
 ## 0.6.3 (August 11, 2015)
 

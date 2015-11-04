@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strconv"
 
@@ -11,7 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 func s3Factory(conf map[string]string) (Client, error) {
@@ -45,6 +48,11 @@ func s3Factory(conf map[string]string) (Client, error) {
 		serverSideEncryption = v
 	}
 
+	acl := ""
+	if raw, ok := conf["acl"]; ok {
+		acl = raw
+	}
+
 	accessKeyId := conf["access_key"]
 	secretAccessKey := conf["secret_key"]
 
@@ -69,14 +77,17 @@ func s3Factory(conf map[string]string) (Client, error) {
 	awsConfig := &aws.Config{
 		Credentials: credentialsProvider,
 		Region:      aws.String(regionName),
+		HTTPClient:  cleanhttp.DefaultClient(),
 	}
-	nativeClient := s3.New(awsConfig)
+	sess := session.New(awsConfig)
+	nativeClient := s3.New(sess)
 
 	return &S3Client{
 		nativeClient:         nativeClient,
 		bucketName:           bucketName,
 		keyName:              keyName,
 		serverSideEncryption: serverSideEncryption,
+		acl:                  acl,
 	}, nil
 }
 
@@ -85,6 +96,7 @@ type S3Client struct {
 	bucketName           string
 	keyName              string
 	serverSideEncryption bool
+	acl                  string
 }
 
 func (c *S3Client) Get() (*Payload, error) {
@@ -125,7 +137,7 @@ func (c *S3Client) Get() (*Payload, error) {
 }
 
 func (c *S3Client) Put(data []byte) error {
-	contentType := "application/octet-stream"
+	contentType := "application/json"
 	contentLength := int64(len(data))
 
 	i := &s3.PutObjectInput{
@@ -139,6 +151,12 @@ func (c *S3Client) Put(data []byte) error {
 	if c.serverSideEncryption {
 		i.ServerSideEncryption = aws.String("AES256")
 	}
+
+	if c.acl != "" {
+		i.ACL = aws.String(c.acl)
+	}
+
+	log.Printf("[DEBUG] Uploading remote state to S3: %#v", i)
 
 	if _, err := c.nativeClient.PutObject(i); err == nil {
 		return nil
