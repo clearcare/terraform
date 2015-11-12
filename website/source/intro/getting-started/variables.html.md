@@ -95,8 +95,17 @@ files. And like Terraform configuration files, these files can also be JSON.
 in the form of `TF_VAR_name` to find the value for a variable. For example,
 the `TF_VAR_access_key` variable can be set to set the `access_key` variable.
 
-We recommend using the "terraform.tfvars" file, and ignoring it from
-version control.
+We don't recommend saving usernames and password to version control, But you
+can create a local secret variables file and use `-var-file` to load it.
+
+You can use multiple `-var-file` arguments in a single command, with some
+checked in to version control and others not checked in. For example:
+
+```
+$ terraform plan \
+  -var-file="secret.tfvars" \
+  -var-file="production.tfvars"
+```
 
 <a id="mappings"></a>
 ## Mappings
@@ -177,7 +186,7 @@ And access them via `lookup()`:
 
 ```
 output "ami" {
-  value = "${lookup(var.amis, var.region)}
+  value = "${lookup(var.amis, var.region)}"
 }
 ```
 

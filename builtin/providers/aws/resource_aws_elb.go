@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/hashicorp/terraform/helper/hashcode"
 	"github.com/hashicorp/terraform/helper/resource"
@@ -24,31 +25,11 @@ func resourceAwsElb() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-				Computed: true,
-				ForceNew: true,
-				ValidateFunc: func(v interface{}, k string) (ws []string, errors []error) {
-					value := v.(string)
-					if !regexp.MustCompile(`^[0-9A-Za-z-]+$`).MatchString(value) {
-						errors = append(errors, fmt.Errorf(
-							"only alphanumeric characters and hyphens allowed in %q: %q",
-							k, value))
-					}
-					if len(value) > 32 {
-						errors = append(errors, fmt.Errorf(
-							"%q cannot be longer than 32 characters: %q", k, value))
-					}
-					if regexp.MustCompile(`^-`).MatchString(value) {
-						errors = append(errors, fmt.Errorf(
-							"%q cannot begin with a hyphen: %q", k, value))
-					}
-					if regexp.MustCompile(`-$`).MatchString(value) {
-						errors = append(errors, fmt.Errorf(
-							"%q cannot end with a hyphen: %q", k, value))
-					}
-					return
-				},
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ValidateFunc: validateElbName,
 			},
 
 			"internal": &schema.Schema{
@@ -94,6 +75,11 @@ func resourceAwsElb() *schema.Resource {
 				Computed: true,
 			},
 
+			"source_security_group_id": &schema.Schema{
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+
 			"subnets": &schema.Schema{
 				Type:     schema.TypeSet,
 				Elem:     &schema.Schema{Type: schema.TypeString},
@@ -119,6 +105,29 @@ func resourceAwsElb() *schema.Resource {
 				Type:     schema.TypeInt,
 				Optional: true,
 				Default:  300,
+			},
+
+			"access_logs": &schema.Schema{
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"interval": &schema.Schema{
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  60,
+						},
+						"bucket": &schema.Schema{
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"bucket_prefix": &schema.Schema{
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+					},
+				},
+				Set: resourceAwsElbAccessLogsHash,
 			},
 
 			"listener": &schema.Schema{
@@ -320,11 +329,28 @@ func resourceAwsElbRead(d *schema.ResourceData, meta interface{}) error {
 	d.Set("security_groups", lb.SecurityGroups)
 	if lb.SourceSecurityGroup != nil {
 		d.Set("source_security_group", lb.SourceSecurityGroup.GroupName)
+
+		// Manually look up the ELB Security Group ID, since it's not provided
+		var elbVpc string
+		if lb.VPCId != nil {
+			elbVpc = *lb.VPCId
+		}
+		sgId, err := sourceSGIdByName(meta, *lb.SourceSecurityGroup.GroupName, elbVpc)
+		if err != nil {
+			return fmt.Errorf("[WARN] Error looking up ELB Security Group ID: %s", err)
+		} else {
+			d.Set("source_security_group_id", sgId)
+		}
 	}
 	d.Set("subnets", lb.Subnets)
 	d.Set("idle_timeout", lbAttrs.ConnectionSettings.IdleTimeout)
 	d.Set("connection_draining", lbAttrs.ConnectionDraining.Enabled)
 	d.Set("connection_draining_timeout", lbAttrs.ConnectionDraining.Timeout)
+	if lbAttrs.AccessLog != nil {
+		if err := d.Set("access_logs", flattenAccessLog(lbAttrs.AccessLog)); err != nil {
+			return err
+		}
+	}
 
 	resp, err := elbconn.DescribeTags(&elb.DescribeTagsInput{
 		LoadBalancerNames: []*string{lb.LoadBalancerName},
@@ -425,7 +451,7 @@ func resourceAwsElbUpdate(d *schema.ResourceData, meta interface{}) error {
 		d.SetPartial("instances")
 	}
 
-	if d.HasChange("cross_zone_load_balancing") || d.HasChange("idle_timeout") {
+	if d.HasChange("cross_zone_load_balancing") || d.HasChange("idle_timeout") || d.HasChange("access_logs") {
 		attrs := elb.ModifyLoadBalancerAttributesInput{
 			LoadBalancerName: aws.String(d.Get("name").(string)),
 			LoadBalancerAttributes: &elb.LoadBalancerAttributes{
@@ -438,6 +464,30 @@ func resourceAwsElbUpdate(d *schema.ResourceData, meta interface{}) error {
 			},
 		}
 
+		logs := d.Get("access_logs").(*schema.Set).List()
+		if len(logs) > 1 {
+			return fmt.Errorf("Only one access logs config per ELB is supported")
+		} else if len(logs) == 1 {
+			log := logs[0].(map[string]interface{})
+			accessLog := &elb.AccessLog{
+				Enabled:      aws.Bool(true),
+				EmitInterval: aws.Int64(int64(log["interval"].(int))),
+				S3BucketName: aws.String(log["bucket"].(string)),
+			}
+
+			if log["bucket_prefix"] != "" {
+				accessLog.S3BucketPrefix = aws.String(log["bucket_prefix"].(string))
+			}
+
+			attrs.LoadBalancerAttributes.AccessLog = accessLog
+		} else if len(logs) == 0 {
+			// disable access logs
+			attrs.LoadBalancerAttributes.AccessLog = &elb.AccessLog{
+				Enabled: aws.Bool(false),
+			}
+		}
+
+		log.Printf("[DEBUG] ELB Modify Load Balancer Attributes Request: %#v", attrs)
 		_, err := elbconn.ModifyLoadBalancerAttributes(&attrs)
 		if err != nil {
 			return fmt.Errorf("Failure configuring ELB attributes: %s", err)
@@ -570,6 +620,19 @@ func resourceAwsElbHealthCheckHash(v interface{}) int {
 	return hashcode.String(buf.String())
 }
 
+func resourceAwsElbAccessLogsHash(v interface{}) int {
+	var buf bytes.Buffer
+	m := v.(map[string]interface{})
+	buf.WriteString(fmt.Sprintf("%d-", m["interval"].(int)))
+	buf.WriteString(fmt.Sprintf("%s-",
+		strings.ToLower(m["bucket"].(string))))
+	if v, ok := m["bucket_prefix"]; ok {
+		buf.WriteString(fmt.Sprintf("%s-", strings.ToLower(v.(string))))
+	}
+
+	return hashcode.String(buf.String())
+}
+
 func resourceAwsElbListenerHash(v interface{}) int {
 	var buf bytes.Buffer
 	m := v.(map[string]interface{})
@@ -590,4 +653,76 @@ func resourceAwsElbListenerHash(v interface{}) int {
 func isLoadBalancerNotFound(err error) bool {
 	elberr, ok := err.(awserr.Error)
 	return ok && elberr.Code() == "LoadBalancerNotFound"
+}
+
+func validateElbName(v interface{}, k string) (ws []string, errors []error) {
+	value := v.(string)
+	if !regexp.MustCompile(`^[0-9A-Za-z-]+$`).MatchString(value) {
+		errors = append(errors, fmt.Errorf(
+			"only alphanumeric characters and hyphens allowed in %q: %q",
+			k, value))
+	}
+	if len(value) > 32 {
+		errors = append(errors, fmt.Errorf(
+			"%q cannot be longer than 32 characters: %q", k, value))
+	}
+	if regexp.MustCompile(`^-`).MatchString(value) {
+		errors = append(errors, fmt.Errorf(
+			"%q cannot begin with a hyphen: %q", k, value))
+	}
+	if regexp.MustCompile(`-$`).MatchString(value) {
+		errors = append(errors, fmt.Errorf(
+			"%q cannot end with a hyphen: %q", k, value))
+	}
+	return
+
+}
+
+func sourceSGIdByName(meta interface{}, sg, vpcId string) (string, error) {
+	conn := meta.(*AWSClient).ec2conn
+	var filters []*ec2.Filter
+	var sgFilterName, sgFilterVPCID *ec2.Filter
+	sgFilterName = &ec2.Filter{
+		Name:   aws.String("group-name"),
+		Values: []*string{aws.String(sg)},
+	}
+
+	if vpcId != "" {
+		sgFilterVPCID = &ec2.Filter{
+			Name:   aws.String("vpc-id"),
+			Values: []*string{aws.String(vpcId)},
+		}
+	}
+
+	filters = append(filters, sgFilterName)
+
+	if sgFilterVPCID != nil {
+		filters = append(filters, sgFilterVPCID)
+	}
+
+	req := &ec2.DescribeSecurityGroupsInput{
+		Filters: filters,
+	}
+	resp, err := conn.DescribeSecurityGroups(req)
+	if err != nil {
+		if ec2err, ok := err.(awserr.Error); ok {
+			if ec2err.Code() == "InvalidSecurityGroupID.NotFound" ||
+				ec2err.Code() == "InvalidGroup.NotFound" {
+				resp = nil
+				err = nil
+			}
+		}
+
+		if err != nil {
+			log.Printf("Error on ELB SG look up: %s", err)
+			return "", err
+		}
+	}
+
+	if resp == nil || len(resp.SecurityGroups) == 0 {
+		return "", fmt.Errorf("No security groups found for name %s and vpc id %s", sg, vpcId)
+	}
+
+	group := resp.SecurityGroups[0]
+	return *group.GroupId, nil
 }

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/terraform/config"
 	"github.com/hashicorp/terraform/config/module"
 )
@@ -70,7 +71,7 @@ func testModule(t *testing.T, name string) *module.Tree {
 		t.Fatalf("err: %s", err)
 	}
 
-	s := &module.FolderStorage{StorageDir: tempDir(t)}
+	s := &getter.FolderStorage{StorageDir: tempDir(t)}
 	if err := mod.Load(s, module.GetModeGet); err != nil {
 		t.Fatalf("err: %s", err)
 	}
@@ -572,6 +573,22 @@ aws_instance.foo:
 Outputs:
 
 foo_num = 2
+`
+
+const testTerraformApplyOutputAddStr = `
+aws_instance.test.0:
+  ID = foo
+  foo = foo0
+  type = aws_instance
+aws_instance.test.1:
+  ID = foo
+  foo = foo1
+  type = aws_instance
+
+Outputs:
+
+firstOutput = foo0
+secondOutput = foo1
 `
 
 const testTerraformApplyOutputListStr = `
@@ -1285,4 +1302,17 @@ CREATE: aws_instance.foo
 STATE:
 
 <no state>
+`
+
+const testTerraformPlanIgnoreChangesStr = `
+DIFF:
+
+UPDATE: aws_instance.foo
+  type: "" => "aws_instance"
+
+STATE:
+
+aws_instance.foo:
+  ID = bar
+  ami = ami-abcd1234
 `

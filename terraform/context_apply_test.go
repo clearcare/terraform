@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform/config/module"
 )
 
 func TestContext2Apply(t *testing.T) {
@@ -296,6 +298,88 @@ func TestContext2Apply_destroyComputed(t *testing.T) {
 	if _, err := ctx.Apply(); err != nil {
 		t.Fatalf("err: %s", err)
 	}
+}
+
+// https://github.com/hashicorp/terraform/issues/2892
+func TestContext2Apply_destroyCrossProviders(t *testing.T) {
+	m := testModule(t, "apply-destroy-cross-providers")
+
+	p_aws := testProvider("aws")
+	p_aws.ApplyFn = testApplyFn
+	p_aws.DiffFn = testDiffFn
+
+	p_tf := testProvider("terraform")
+	p_tf.ApplyFn = testApplyFn
+	p_tf.DiffFn = testDiffFn
+
+	providers := map[string]ResourceProviderFactory{
+		"aws":       testProviderFuncFixed(p_aws),
+		"terraform": testProviderFuncFixed(p_tf),
+	}
+
+	// Bug only appears from time to time,
+	// so we run this test multiple times
+	// to check for the race-condition
+	for i := 0; i <= 10; i++ {
+		ctx := getContextForApply_destroyCrossProviders(
+			t, m, providers)
+
+		if p, err := ctx.Plan(); err != nil {
+			t.Fatalf("err: %s", err)
+		} else {
+			t.Logf(p.String())
+		}
+
+		if _, err := ctx.Apply(); err != nil {
+			t.Fatalf("err: %s", err)
+		}
+	}
+}
+
+func getContextForApply_destroyCrossProviders(
+	t *testing.T,
+	m *module.Tree,
+	providers map[string]ResourceProviderFactory) *Context {
+	state := &State{
+		Modules: []*ModuleState{
+			&ModuleState{
+				Path: rootModulePath,
+				Resources: map[string]*ResourceState{
+					"terraform_remote_state.shared": &ResourceState{
+						Type: "terraform_remote_state",
+						Primary: &InstanceState{
+							ID: "remote-2652591293",
+							Attributes: map[string]string{
+								"output.env_name": "test",
+							},
+						},
+					},
+				},
+			},
+			&ModuleState{
+				Path: []string{"root", "example"},
+				Resources: map[string]*ResourceState{
+					"aws_vpc.bar": &ResourceState{
+						Type: "aws_vpc",
+						Primary: &InstanceState{
+							ID: "vpc-aaabbb12",
+							Attributes: map[string]string{
+								"value": "test",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ctx := testContext2(t, &ContextOpts{
+		Module:    m,
+		Providers: providers,
+		State:     state,
+		Destroy:   true,
+	})
+
+	return ctx
 }
 
 func TestContext2Apply_minimal(t *testing.T) {
@@ -2764,6 +2848,55 @@ func TestContext2Apply_outputInvalid(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "is not a string") {
 		t.Fatalf("err: %s", err)
+	}
+}
+
+func TestContext2Apply_outputAdd(t *testing.T) {
+	m1 := testModule(t, "apply-output-add-before")
+	p1 := testProvider("aws")
+	p1.ApplyFn = testApplyFn
+	p1.DiffFn = testDiffFn
+	ctx1 := testContext2(t, &ContextOpts{
+		Module: m1,
+		Providers: map[string]ResourceProviderFactory{
+			"aws": testProviderFuncFixed(p1),
+		},
+	})
+
+	if _, err := ctx1.Plan(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	state1, err := ctx1.Apply()
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	m2 := testModule(t, "apply-output-add-after")
+	p2 := testProvider("aws")
+	p2.ApplyFn = testApplyFn
+	p2.DiffFn = testDiffFn
+	ctx2 := testContext2(t, &ContextOpts{
+		Module: m2,
+		Providers: map[string]ResourceProviderFactory{
+			"aws": testProviderFuncFixed(p2),
+		},
+		State: state1,
+	})
+
+	if _, err := ctx2.Plan(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	state2, err := ctx2.Apply()
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	actual := strings.TrimSpace(state2.String())
+	expected := strings.TrimSpace(testTerraformApplyOutputAddStr)
+	if actual != expected {
+		t.Fatalf("bad: \n%s", actual)
 	}
 }
 
