@@ -130,7 +130,7 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 
 	// preferred cache cluster AZs are optional and can be defaulted by AWS
 	if v, ok := d.GetOk("preferred_cache_cluster_azs"); ok {
-		prefferedCacheClusterAZs := d.Get("preferred_cache_cluster_azs").(*schema.Set)
+		prefferedCacheClusterAZs := v.(*schema.Set)
 		prefferedAZs := expandStringList(prefferedCacheClusterAZs.List())
 		req.PreferredCacheClusterAZs = prefferedAZs
 	}
