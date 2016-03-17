@@ -110,11 +110,9 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 	securityNameSet := d.Get("security_group_names").(*schema.Set)
 	securityIDSet := d.Get("security_group_ids").(*schema.Set)
 	subnetGroupName := d.Get("subnet_group_name").(string)
-	prefferedCacheClusterAZs := d.Get("preferred_cache_cluster_azs").(*schema.Set)
 
 	securityNames := expandStringList(securityNameSet.List())
 	securityIds := expandStringList(securityIDSet.List())
-	prefferedAZs := expandStringList(prefferedCacheClusterAZs.List())
 
 	req := &elasticache.CreateReplicationGroupInput{
 		ReplicationGroupId:          aws.String(replicationGroupID),
@@ -128,7 +126,13 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 		EngineVersion:               aws.String(engineVersion),
 		CacheSecurityGroupNames:     securityNames,
 		SecurityGroupIds:            securityIds,
-		PreferredCacheClusterAZs:    prefferedAZs,
+	}
+
+	// preferred cache cluster AZs are optional and can be defaulted by AWS
+	if v, ok := d.GetOk("preferred_cache_cluster_azs"); ok {
+		prefferedCacheClusterAZs := d.Get("preferred_cache_cluster_azs").(*schema.Set)
+		prefferedAZs := expandStringList(prefferedCacheClusterAZs.List())
+		req.PreferredCacheClusterAZs = prefferedAZs
 	}
 
 	// parameter groups are optional and can be defaulted by AWS
