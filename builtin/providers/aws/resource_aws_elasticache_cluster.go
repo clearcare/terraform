@@ -152,6 +152,11 @@ func resourceAwsElasticacheCluster() *schema.Resource {
 				Computed: true,
 			},
 
+			"num_cache_nodes": &schema.Schema{
+				Type:     schema.TypeInt,
+				Optional: true,
+			},
+
 			"snapshot_retention_limit": &schema.Schema{
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -206,7 +211,6 @@ func resourceAwsElasticacheClusterCreate(d *schema.ResourceData, meta interface{
 
 	clusterId := d.Get("cluster_id").(string)
 	nodeType := d.Get("node_type").(string)           // e.g) cache.m1.small
-	numNodes := int64(d.Get("num_cache_nodes").(int)) // 2
 	engine := d.Get("engine").(string)                // memcached
 	engineVersion := d.Get("engine_version").(string) // 1.4.14
 	port := int64(d.Get("port").(int))                // e.g) 11211
@@ -222,7 +226,6 @@ func resourceAwsElasticacheClusterCreate(d *schema.ResourceData, meta interface{
 	req := &elasticache.CreateCacheClusterInput{
 		CacheClusterId:          aws.String(clusterId),
 		CacheNodeType:           aws.String(nodeType),
-		NumCacheNodes:           aws.Int64(numNodes),
 		Engine:                  aws.String(engine),
 		EngineVersion:           aws.String(engineVersion),
 		Port:                    aws.Int64(port),
@@ -236,6 +239,10 @@ func resourceAwsElasticacheClusterCreate(d *schema.ResourceData, meta interface{
 	// parameter groups are optional and can be defaulted by AWS
 	if v, ok := d.GetOk("parameter_group_name"); ok {
 		req.CacheParameterGroupName = aws.String(v.(string))
+	}
+
+	if v, ok := d.GetOk("num_cache_nodes"); ok {
+		req.NumCacheNodes = aws.Int64(int64(v.(int)))
 	}
 
 	if v, ok := d.GetOk("snapshot_retention_limit"); ok {

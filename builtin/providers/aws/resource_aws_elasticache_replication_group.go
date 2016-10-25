@@ -12,7 +12,51 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
+func resourceAwsElasticacheReplicationGroupCommon() map[string]*schema.Schema {
+
+	resourceSchema := resourceAwsElastiCacheCommonSchema()
+
+	resourceSchema["replication_group_id"] = &schema.Schema{
+		Type:         schema.TypeString,
+		Required:     true,
+		ForceNew:     true,
+		ValidateFunc: validateAwsElastiCacheReplicationGroupId,
+	}
+
+	resourceSchema["replication_group_description"] = &schema.Schema{
+		Type:     schema.TypeString,
+		Required: true,
+	}
+
+	resourceSchema["engine"].Required = false
+	resourceSchema["engine"].Optional = true
+	resourceSchema["engine"].Default = "redis"
+	resourceSchema["engine"].ValidateFunc = validateAwsElastiCacheReplicationGroupEngine
+
+	return resourceSchema
+}
+
 func resourceAwsElasticacheReplicationGroup() *schema.Resource {
+
+	resourceSchema := resourceAwsElasticacheReplicationGroupCommon()
+
+	resourceSchema["number_cache_clusters"] = &schema.Schema{
+		Type:     schema.TypeInt,
+		Required: true,
+		ForceNew: true,
+	}
+
+	resourceSchema["automatic_failover_enabled"] = &schema.Schema{
+		Type:     schema.TypeBool,
+		Optional: true,
+		Default:  false,
+	}
+
+	resourceSchema["primary_endpoint_address"] = &schema.Schema{
+		Type:     schema.TypeString,
+		Computed: true,
+	}
+
 	return &schema.Resource{
 		Create: resourceAwsElasticacheReplicationGroupCreate,
 		Read:   resourceAwsElasticacheReplicationGroupRead,
@@ -96,42 +140,33 @@ func resourceAwsElasticacheReplicationGroup() *schema.Resource {
 	}
 }
 
-func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta interface{}) error {
-	conn := meta.(*AWSClient).elasticacheconn
+func resourceAwsElasticacheReplicationGroupCreateSetup(d *schema.ResourceData, meta interface{}) *elasticache.CreateReplicationGroupInput {
 
-	replicationGroupID := d.Get("replication_group_id").(string)
-	description := d.Get("description").(string)
-	cacheNodeType := d.Get("cache_node_type").(string)
-	automaticFailover := d.Get("automatic_failover").(bool)
-	numCacheClusters := d.Get("num_cache_clusters").(int)
-	primaryClusterID := d.Get("primary_cluster_id").(string)
-	engine := d.Get("engine").(string)
-	engineVersion := d.Get("engine_version").(string)
-	securityNameSet := d.Get("security_group_names").(*schema.Set)
-	securityIDSet := d.Get("security_group_ids").(*schema.Set)
-	subnetGroupName := d.Get("subnet_group_name").(string)
-	prefferedCacheClusterAZs := d.Get("preferred_cache_cluster_azs").(*schema.Set)
-
-	securityNames := expandStringList(securityNameSet.List())
-	securityIds := expandStringList(securityIDSet.List())
-	prefferedAZs := expandStringList(prefferedCacheClusterAZs.List())
-
-	req := &elasticache.CreateReplicationGroupInput{
-		ReplicationGroupId:          aws.String(replicationGroupID),
-		ReplicationGroupDescription: aws.String(description),
-		CacheNodeType:               aws.String(cacheNodeType),
-		AutomaticFailoverEnabled:    aws.Bool(automaticFailover),
-		NumCacheClusters:            aws.Int64(int64(numCacheClusters)),
-		PrimaryClusterId:            aws.String(primaryClusterID),
-		Engine:                      aws.String(engine),
-		CacheSubnetGroupName:        aws.String(subnetGroupName),
-		EngineVersion:               aws.String(engineVersion),
-		CacheSecurityGroupNames:     securityNames,
-		SecurityGroupIds:            securityIds,
-		PreferredCacheClusterAZs:    prefferedAZs,
+	tags := tagsFromMapEC(d.Get("tags").(map[string]interface{}))
+	params := &elasticache.CreateReplicationGroupInput{
+		ReplicationGroupId:          aws.String(d.Get("replication_group_id").(string)),
+		ReplicationGroupDescription: aws.String(d.Get("replication_group_description").(string)),
+		AutomaticFailoverEnabled:    aws.Bool(d.Get("automatic_failover_enabled").(bool)),
+		CacheNodeType:               aws.String(d.Get("node_type").(string)),
+		Engine:                      aws.String(d.Get("engine").(string)),
+		Port:                        aws.Int64(int64(d.Get("port").(int))),
+		Tags:                        tags,
 	}
 
-	// parameter groups are optional and can be defaulted by AWS
+	if v, ok := d.GetOk("number_cache_clusters"); ok {
+		params.NumCacheClusters = aws.Int64(int64(v.(int)))
+	}
+
+	if v, ok := d.GetOk("engine_version"); ok {
+		params.EngineVersion = aws.String(v.(string))
+	}
+
+	preferred_azs := d.Get("availability_zones").(*schema.Set).List()
+	if len(preferred_azs) > 0 {
+		azs := expandStringList(preferred_azs)
+		params.PreferredCacheClusterAZs = azs
+	}
+
 	if v, ok := d.GetOk("parameter_group_name"); ok {
 		req.CacheParameterGroupName = aws.String(v.(string))
 	}
@@ -140,7 +175,13 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 		req.PreferredMaintenanceWindow = aws.String(v.(string))
 	}
 
-	_, err := conn.CreateReplicationGroup(req)
+	return params
+}
+
+func resourceAwsElasticacheReplicationGroupCreateCommon(d *schema.ResourceData, meta interface{}, params *elasticache.CreateReplicationGroupInput) error {
+	conn := meta.(*AWSClient).elasticacheconn
+
+	resp, err := conn.CreateReplicationGroup(params)
 	if err != nil {
 		return fmt.Errorf("Error creating Elasticache replication group: %s", err)
 	}
@@ -164,6 +205,11 @@ func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta i
 	}
 
 	return resourceAwsElasticacheReplicationGroupRead(d, meta)
+}
+
+func resourceAwsElasticacheReplicationGroupCreate(d *schema.ResourceData, meta interface{}) error {
+	params := resourceAwsElasticacheReplicationGroupCreateSetup(d, meta)
+	return resourceAwsElasticacheReplicationGroupCreateCommon(d, meta, params)
 }
 
 func resourceAwsElasticacheReplicationGroupRead(d *schema.ResourceData, meta interface{}) error {
@@ -195,6 +241,17 @@ func resourceAwsElasticacheReplicationGroupRead(d *schema.ResourceData, meta int
 		d.Set("num_cache_clusters", len(c.MemberClusters))
 		if len(c.NodeGroups) >= 1 && c.NodeGroups[0].PrimaryEndpoint != nil {
 			d.Set("primary_endpoint", c.NodeGroups[0].PrimaryEndpoint.Address)
+		}
+		d.Set("maintenance_window", c.PreferredMaintenanceWindow)
+		d.Set("snapshot_window", c.SnapshotWindow)
+		d.Set("snapshot_retention_limit", c.SnapshotRetentionLimit)
+
+		if rgp.NodeGroups[0].PrimaryEndpoint != nil {
+			d.Set("port", rgp.NodeGroups[0].PrimaryEndpoint.Port)
+			d.Set("primary_endpoint_address", rgp.NodeGroups[0].PrimaryEndpoint.Address)
+		} else if rgp.NodeGroups[0].Endpoint != nil {
+			d.Set("port", rgp.NodeGroups[0].Endpoint.Port)
+			d.Set("endpoint_address", rgp.NodeGroups[0].Endpoint.Address)
 		}
 	}
 

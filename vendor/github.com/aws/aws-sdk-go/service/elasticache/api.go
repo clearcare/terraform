@@ -4515,6 +4515,13 @@ type NodeGroup struct {
 	// node.
 	PrimaryEndpoint *Endpoint `type:"structure"`
 
+	// When creating a native cache cluster the Endpoint attribute is populated not
+	// PrimaryEndpoint.
+	Endpoint *Endpoint `type:"structure"`
+
+	// The keyspace for this node group (shard).
+	Slots *string `type:"string"`
+
 	// The current state of this replication group - creating, available, etc.
 	Status *string `type:"string"`
 }
