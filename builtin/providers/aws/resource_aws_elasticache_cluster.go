@@ -152,11 +152,6 @@ func resourceAwsElasticacheCluster() *schema.Resource {
 				Computed: true,
 			},
 
-			"num_cache_nodes": &schema.Schema{
-				Type:     schema.TypeInt,
-				Optional: true,
-			},
-
 			"snapshot_retention_limit": &schema.Schema{
 				Type:     schema.TypeInt,
 				Optional: true,
