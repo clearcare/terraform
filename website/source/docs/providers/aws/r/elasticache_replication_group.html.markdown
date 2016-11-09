@@ -10,20 +10,22 @@ description: |-
 
 Provides an ElastiCache Replication Group resource.
 
+~> **Note:** We currently do not support passing a `primary_cluster_id` in order to create the Replication Group.
+
 ## Example Usage
 
 Basic Usage:
 
 ```
-resource "aws_elasticache_replication_group" "redis" {
-    replication_group_id = "users-redis"
-    description = "users redis"
-    engine = "redis"
-    cache_node_type = "cache.m3.medium"
-    num_cache_clusters = 2
-    automatic_failover = true
-    subnet_group_name = "${aws_elasticache_subnet_group.redis.name}"
-    security_group_ids = ["${aws_security_group.redis.id}"]
+resource "aws_elasticache_replication_group" "bar" {
+  replication_group_id          = "tf-replication-group-1"
+  replication_group_description = "test description"
+  node_type                     = "cache.m1.small"
+  number_cache_clusters         = 2
+  port                          = 6379
+  parameter_group_name          = "default.redis2.8"
+  availability_zones            = ["us-west-2a", "us-west-2b"]
+  automatic_failover_enabled    = true
 }
 ```
 
@@ -51,13 +53,15 @@ The following arguments are supported:
 
 * `replication_group_id` – (Required) The replication group identifier. This parameter is stored as a lowercase string.
 * `replication_group_description` – (Required) A user-created description for the replication group.
-* `node_type` - (Required) The compute and memory capacity of the nodes in the node group.
-* `number_cache_clusters` - (Optional) The number of cache clusters this replication group will have.
+* `number_cache_clusters` - (Required) The number of cache clusters this replication group will have.
  If Multi-AZ is enabled , the value of this parameter must be at least 2. Changing this number will force a new resource
+* `node_type` - (Required) The compute and memory capacity of the nodes in the node group.
 * `automatic_failover_enabled` - (Optional) Specifies whether a read-only replica will be automatically promoted to read/write primary if the existing primary fails. Defaults to `false`.
+* `auto_minor_version_upgrade` - (Optional) Specifies whether a minor engine upgrades will be applied automatically to the underlying Cache Cluster instances during the maintenance window. Defaults to `true`.
 * `availability_zones` - (Optional) A list of EC2 availability zones in which the replication group's cache clusters will be created. The order of the availability zones in the list is not important.
 * `engine_version` - (Optional) The version number of the cache engine to be used for the cache clusters in this replication group.
 * `parameter_group_name` - (Optional) The name of the parameter group to associate with this replication group. If this argument is omitted, the default cache parameter group for the specified engine is used.
+* `port` – (Required) The port number on which each of the cache nodes will accept connections. For Memcache the default is 11211, and for Redis the default port is 6379.
 * `subnet_group_name` - (Optional) The name of the cache subnet group to be used for the replication group.
 * `security_group_names` - (Optional) A list of cache security group names to associate with this replication group.
 * `security_group_ids` - (Optional) One or more Amazon VPC security groups associated with this replication group. Use this parameter only when you are creating a replication group in an Amazon Virtual Private Cloud 
@@ -86,7 +90,6 @@ Please note that setting a `snapshot_retention_limit` is not supported on cache.
 ## Native Redis Cluster
 
 To provision a native Redis cluster set the parameter group to one with clustering turned on. Set num_node_groups and number_cache_clusters to the desired values. automatic_failover_enabled must be set to true. availability_zones can not be specified. The number_cache_clusters will be computed and should be not set. Its value is num_node_groups * replicas_per_node_group + num_node_groups.
->>>>>>> 8ffaa3b...  #9419 - Feature request: Support for ElastiCache Redis cluster mode
 
 * `description` – (Required) The description of the replication group.
 
@@ -104,34 +107,18 @@ supported node types
 * `automatic_failover` - (Optional) Specifies whether a read-only replica will be automatically promoted to read/write primary if the existing primary fails.
 If true, Multi-AZ is enabled for this replication group. If false, Multi-AZ is disabled for this replication group.
 
-<<<<<<< HEAD
-* `num_cache_clusters` – (Optional) The number of cache clusters this replication group will initially have. If `automatic_failover` is enabled, the value of this parameter must be at least 2.
-Either this or `primary_cluster_id` is required.
-
-* `primary_cluster_id` - (Optional) The identifier of the cache cluster that
-will serve as the primary for this replication group. This cache cluster must already exist and have a status of available.
-Either this or `num_cache_clusters` is required.
-
-* `parameter_group_name` – (Required) Name of the parameter group to associate
-with this cache cluster
-
-* `preferred_cache_cluster_azs` - (Optional) A list of EC2 availability zones in which the replication group's cache clusters will be created. The order of the availability zones in the list is not important. If not provided, AWS will chose them for you.
-
-* `subnet_group_name` – (Optional, VPC only) Name of the subnet group to be used
-for the cache cluster.
-
-* `security_group_names` – (Optional, EC2 Classic only) List of security group
-names to associate with this cache cluster
-
-* `security_group_ids` – (Optional, VPC only) One or more VPC security groups associated
- with the cache cluster
-
-
 ## Attributes Reference
 
 The following attributes are exported:
 
-* `primary_endpoint` - The address of the primary node.
+* `id` - The ID of the ElastiCache Replication Group.
+* `primary_endpoint_address` - The address of the endpoint for the primary node in the replication group. If Redis, only present when cluster mode is disabled.
+* `configuration_endpoint_address` - (Redis only) The address of the replication group configuration endpoint when cluster mode is enabled.
+
+## Import
+
+ElastiCache Replication Groups can be imported using the `replication_group_id`, e.g.
+
 ```
 $ terraform import aws_elasticache_replication_group.my_replication_group replication-group-1
 ```

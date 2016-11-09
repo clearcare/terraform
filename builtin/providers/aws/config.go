@@ -98,6 +98,7 @@ type AWSClient struct {
 	stsconn              *sts.STS
 	redshiftconn         *redshift.Redshift
 	r53conn              *route53.Route53
+	partition            string
 	accountid            string
 	region               string
 	rdsconn              *rds.RDS
