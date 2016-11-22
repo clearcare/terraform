@@ -4,20 +4,23 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/hashicorp/terraform/helper/acctest"
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
 func TestAccAWSElasticacheRedisCluster_vpc(t *testing.T) {
+	var rg elasticache.ReplicationGroup
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckAWSEcacheReplicationGroupDestroy,
+		CheckDestroy: testAccCheckAWSElasticacheReplicationDestroy,
 		Steps: []resource.TestStep{
 			resource.TestStep{
 				Config: testAccAWSElasticacheRedisClusterVPCConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckAWSEcacheReplicationGroupExists("aws_elasticache_redis_cluster.bar"),
+					testAccCheckAWSElasticacheReplicationGroupExists("aws_elasticache_redis_cluster.bar", &rg),
 					resource.TestCheckResourceAttr(
 						"aws_elasticache_redis_cluster.bar", "number_cache_clusters", "4"),
 					resource.TestCheckResourceAttr(

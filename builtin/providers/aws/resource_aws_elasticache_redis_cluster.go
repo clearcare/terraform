@@ -45,7 +45,10 @@ func resourceAwsElasticacheRedisCluster() *schema.Resource {
 
 func resourceAwsElasticacheRedisClusterCreate(d *schema.ResourceData, meta interface{}) error {
 
-	params := resourceAwsElasticacheReplicationGroupCreateSetup(d, meta)
+	params, err := resourceAwsElasticacheReplicationGroupCreateSetup(d, meta)
+	if err != nil {
+		return err
+	}
 
 	if v, ok := d.GetOk("num_node_groups"); ok {
 		params.NumNodeGroups = aws.Int64(int64(v.(int)))
